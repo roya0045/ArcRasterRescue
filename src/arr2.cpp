@@ -463,11 +463,6 @@ void Field::print() const {
 }
 
 
-
-
-
-
-
 //NOTE: The following assumes that data is always stored in big endian order.
 //      This should be confirmed.
 template<class T>
@@ -526,8 +521,6 @@ std::vector<T> Unpack(std::vector<uint8_t> &packed, const int block_width, const
 
   return output;
 }
-
-
 
 
 std::string BaseTable::getFilenameX(std::string filename){
@@ -826,8 +819,6 @@ MasterTable::MasterTable(std::string filename) : BaseTable(filename) {
     }
   }
 }
-
-
 
 
 
@@ -1342,15 +1333,11 @@ void ExportTypedRasterToGeoTIFF(std::string operation, std::string basename, int
 
 
   BaseTable        bt(basename+hexify(raster_num));
-  RasterBase       rb(basename+hexify(raster_num+4)); //Get the fras_bnd file
   RasterProjection rp(basename+hexify(raster_num+1));
   RasterData<T>    rd(basename+hexify(raster_num+3), rb);
+  RasterBase       rb(basename+hexify(raster_num+4)); //Get the fras_bnd file
 
-  // for(int y=0;y<300;y++){
-  //   for(int x=0;x<300;x++)
-  //     std::cerr<<rd.geodata[y*rd.width+x]<<" ";
-  //   std::cerr<<"\n";
-  // }
+
 
   for(const auto &f: bt.fields)
     if(f.type==9){
@@ -1391,10 +1378,6 @@ void ExportRasterToGeoTIFF(std::string operation, std::string basename, int rast
     std::cerr<<"Unrecognised raster data type: "<<rb.data_type<<"!"<<std::endl;
 }
 
-#include <arc_raster_rescue/arc_raster_rescue.hpp>
-
-#include <iomanip>
-#include <iostream>
 #include <locale>
 
 int main(int argc, char **argv){
