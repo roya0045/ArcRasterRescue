@@ -447,14 +447,6 @@ void Zinflate(std::vector<uint8_t> &src, std::vector<uint8_t> &dst) {
 
 
 
-
-
-
-
-
-
-
-
 void Field::print() const {
   std::cout<<"Name     = "<<name      <<"\n"
            <<"Alias    = "<<alias     <<"\n"
@@ -785,8 +777,9 @@ BaseTable::BaseTable(std::string filename){
 }
 
 
-MasterTable::MasterTable(std::string filename) : BaseTable(filename) {
+MasterTable::MasterTable(std::string foldername) : BaseTable(foldername + "a00000001.gdbtable") {
 
+std::string masterTable = foldername + "a00000001.gdbtable";
   for(int f=0;f<nfeaturesx;f++){
     GotoPosition(gdbtablx, 16 + f * size_tablx_offsets);
     const auto feature_offset = ReadIndex40(gdbtablx);
@@ -820,6 +813,53 @@ MasterTable::MasterTable(std::string filename) : BaseTable(filename) {
   }
 }
 
+RasterBase MasterTable::getRasterBase( int raster_num ){
+	RasterBase rb( foldername + hexify( raster_num + 4 ) );
+	return rb;
+}
+
+ vector<std::string> MasterTable::listRasters(){
+  vector<std::string> rasters;
+    if( rasters.size() == 0 ){
+	  return bands;
+    }
+
+    for(unsigned int r  = 0; r < rasters.size(); r++ ){
+	  bands.insert( rasters[r].first );
+      //std::cout<<" ("<<std::hex<<std::setw(3)<<mt.rasters[r].second<<std::dec<<")"; //Latter part displays file identifier
+    }
+	return rasters;
+  } 
+  
+ int MasterTable::getRasterId( std::string name ){
+    if( rasters.size() == 0 ){
+      return -1;
+    }
+
+    unsigned int raster_num = (unsigned int)-1;
+
+    try {
+      raster_num = std::stoi(name);
+    } catch (...) {
+      for( unsigned int i=0; i < rasters.size(); i++ ){
+        std::locale loc;
+        std::string lower;
+        for( auto &s : rasters[i].first )
+          s = std::tolower( s, loc );
+
+        if( rasters[i].first == name || lower == name ){
+          raster_num = i;
+          break;
+        }
+      }
+    }
+    if( raster_num >= rasters.size() ){ //Note: Don't need <0 check because raster_num is unsigned
+      return -1;
+    }
+	return raster_num;
+  }
+  
+  
 
 
 /* Plus 0
@@ -997,6 +1037,31 @@ std::string RasterBase::bandTypeToDataTypeString(std::vector<uint8_t> &band_type
 
   std::cerr<<"Unrecognised band data type!"<<std::endl;
   throw std::runtime_error("Unrecognised band data type!");
+}
+
+std::string RasterBase::rasterType(){
+  if(rb.data_type=="64bit")
+    return "double";
+  else if(rb.data_type=="float32")
+    return "float";
+  else if(rb.data_type=="uint8_t")
+    return "uint8_t";
+  else if(rb.data_type=="int16_t")
+    return "int16_t";
+  else if(rb.data_type=="int32_t")
+    return "int32_t";
+  else if(rb.data_type=="int8_t")
+    return "int8_t";
+  else if(rb.data_type=="uint16_t")
+    return "uint16_t";
+  else if(rb.data_type=="uint32_t")
+    return "uint32_t";
+  else if(rb.data_type=="4bit")
+    return "uint8_t";
+  else if(rb.data_type=="1bit")
+    return "uint8_t";
+  else
+	return "unknown";
 }
 
 
@@ -1332,12 +1397,22 @@ template<class T>
 void ExportTypedRasterToGeoTIFF(std::string operation, std::string basename, int raster_num, std::string outputname){
 
 
-  BaseTable        bt(basename+hexify(raster_num));
-  RasterProjection rp(basename+hexify(raster_num+1));
-  RasterData<T>    rd(basename+hexify(raster_num+3), rb);
-  RasterBase       rb(basename+hexify(raster_num+4)); //Get the fras_bnd file
+class Raster(string sourceDb){
+
+  BaseTable        bt;
+  RasterProjection rp;
+  RasterData<T>  rd;
+  RasterBase     rb;
+
+}
 
 
+void Raster::readRaster( std::string basename, int raster_num ){
+
+  bt(basename+hexify(raster_num));
+  rp(basename+hexify(raster_num+1));
+  rb(basename+hexify(raster_num+4)); //Get the fras_bnd file 
+  rd(basename+hexify(raster_num+3), rb);
 
   for(const auto &f: bt.fields)
     if(f.type==9){
@@ -1347,6 +1422,9 @@ void ExportTypedRasterToGeoTIFF(std::string operation, std::string basename, int
     }
 
   rd.geotransform = rb.geotransform;
+}
+
+
 
   rd.save(outputname, operation, false);
 }
@@ -1354,39 +1432,14 @@ void ExportTypedRasterToGeoTIFF(std::string operation, std::string basename, int
 void ExportRasterToGeoTIFF(std::string operation, std::string basename, int raster_num, std::string outputname){
   RasterBase rb(basename+hexify(raster_num+4)); //Get the fras_bnd file
 
-  if     (rb.data_type=="64bit")
-    ExportTypedRasterToGeoTIFF<double>(operation, basename, raster_num, outputname);
-  else if(rb.data_type=="float32")
-    ExportTypedRasterToGeoTIFF<float>(operation, basename, raster_num, outputname);
-  else if(rb.data_type=="uint8_t")
-    ExportTypedRasterToGeoTIFF<uint8_t>(operation, basename, raster_num, outputname);
-  else if(rb.data_type=="int16_t")
-    ExportTypedRasterToGeoTIFF<int16_t>(operation, basename, raster_num, outputname);
-  else if(rb.data_type=="int32_t")
-    ExportTypedRasterToGeoTIFF<int32_t>(operation, basename, raster_num, outputname);
-  else if(rb.data_type=="int8_t")
-    ExportTypedRasterToGeoTIFF<int8_t>(operation, basename, raster_num, outputname);
-  else if(rb.data_type=="uint16_t")
-    ExportTypedRasterToGeoTIFF<uint16_t>(operation, basename, raster_num, outputname);
-  else if(rb.data_type=="uint32_t")
-    ExportTypedRasterToGeoTIFF<uint32_t>(operation, basename, raster_num, outputname);
-  else if(rb.data_type=="4bit")
-    ExportTypedRasterToGeoTIFF<uint8_t>(operation, basename, raster_num, outputname);
-  else if(rb.data_type=="1bit")
-    ExportTypedRasterToGeoTIFF<uint8_t>(operation, basename, raster_num, outputname);
-  else
-    std::cerr<<"Unrecognised raster data type: "<<rb.data_type<<"!"<<std::endl;
+
+    
 }
 
 #include <locale>
 
 int main(int argc, char **argv){
   std::string operation;
-  for(int i=0;i<argc;i++)
-    operation+=argv[i]+std::string(" ");
-
-  std::cerr<<program_identifier<<std::endl;
-
   if(argc!=2 && argc!=4){
     std::cerr<<"Syntax A: "<<argv[0]<<" <File Geodatabase>"<<std::endl;
     std::cerr<<"Syntax B: "<<argv[0]<<" <File Geodatabase> <Raster> <Output Name>"<<std::endl;
@@ -1402,43 +1455,6 @@ int main(int argc, char **argv){
   std::string basename = argv[1];
 
   MasterTable mt(basename+"a00000001.gdbtable");
-
-  if(argc==2){
-    std::cout<<"Rasters found: \n";
-    for(unsigned int r=0;r<mt.rasters.size();r++){
-      std::cout<<std::setw(2)<<r<<" "<<mt.rasters[r].first;
-      std::cout<<"\n";
-    }
-    if(mt.rasters.size()==0){
-      std::cout<<"\tNo rasters found!"<<std::endl;
-    }
-  } else if(argc==4){
-    if(mt.rasters.size()==0){
-      std::cerr<<"No rasters found!"<<std::endl;
-      return -1;
-    }
-
-    unsigned int raster_num = (unsigned int)-1;
-
-    try {
-      raster_num = std::stoi(argv[2]);
-    } catch (...) {
-      for(unsigned int i=0;i<mt.rasters.size();i++){
-        std::locale loc;
-        std::string lower;
-        for(auto &s: mt.rasters[i].first)
-          s = std::tolower(s,loc);
-
-        if(mt.rasters[i].first==argv[2] || lower==argv[2]){
-          raster_num = i;
-          break;
-        }
-      }
-    }
-    if(raster_num>=mt.rasters.size()){ //Note: Don't need <0 check because raster_num is unsigned
-      std::cerr<<"Invalid raster number! Must be 0-"<<(mt.rasters.size()-1)<<"."<<std::endl;
-      return -1;
-    }
 
     ExportRasterToGeoTIFF(operation, basename, mt.rasters.at(raster_num).second, std::string(argv[3]));
   }
