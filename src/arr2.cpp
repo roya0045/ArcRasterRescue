@@ -136,7 +136,7 @@ class RasterProjection : public BaseTable {
 class Raster;
 
 template<class T>
-class RasterData : public BaseTable {
+class RasterBand : public BaseTable {
  public:
   std::vector<T> geodata;
 
@@ -145,7 +145,7 @@ class RasterData : public BaseTable {
   int maxpx = 0;
   int maxpy = 0;
 
-  RasterData(std::string filename, const RasterBase &rb);
+  RasterBand(std::string filename, const RasterBase &rb);
 
   void getDimensionsFromData(std::string filename, const RasterBase &rb);
 
@@ -1106,7 +1106,7 @@ RasterProjection::RasterProjection(std::string filename) : BaseTable(filename){
 
 
 template<class T>
-RasterData<T>::RasterData(std::string filename, const RasterBase &rb) : BaseTable(filename){
+RasterBand<T>::RasterBand(std::string filename, const RasterBase &rb) : BaseTable(filename){
   //Determine maximum and minimum pixel coordinates from the data itself, since
   //extracting them from the metadata is not yet reliable.
   getDimensionsFromData(filename,rb);
@@ -1299,7 +1299,7 @@ RasterData<T>::RasterData(std::string filename, const RasterBase &rb) : BaseTabl
 
 
 template<class T>
-void RasterData<T>::getDimensionsFromData(std::string filename, const RasterBase &rb){
+void RasterBand<T>::getDimensionsFromData(std::string filename, const RasterBase &rb){
   minpx = std::numeric_limits<int>::max();
   minpy = std::numeric_limits<int>::max();
   maxpx = std::numeric_limits<int>::min();
@@ -1361,7 +1361,7 @@ void RasterData<T>::getDimensionsFromData(std::string filename, const RasterBase
 
 
 template<class T>
-void RasterData<T>::resize(int64_t width, int64_t height, T no_data_val){
+void RasterBand<T>::resize(int64_t width, int64_t height, T no_data_val){
   this->width  = width;
   this->height = height;
   std::cerr<<"Allocating "<<sizeof(T)<<"x"<<width<<"x"<<height<<" = "<<(sizeof(T)*width*height)<<std::endl;
@@ -1370,23 +1370,23 @@ void RasterData<T>::resize(int64_t width, int64_t height, T no_data_val){
 }
 
 template<class T>
-bool RasterData<T>::in_raster(int x, int y) const {
+bool RasterBand<T>::in_raster(int x, int y) const {
   //std::cerr<<std::dec<<x<<" "<<width<<" "<<y<<" "<<height<<std::endl;
   return 0<=x && x<width && 0<=y && y<height;
 }
 
 template<class T>
-T& RasterData<T>::operator()(int64_t x, int64_t y){
+T& RasterBand<T>::operator()(int64_t x, int64_t y){
   return geodata[y*width+x];
 }
 
 template<class T>
-T RasterData<T>::operator()(int64_t x, int64_t y) const {
+T RasterBand<T>::operator()(int64_t x, int64_t y) const {
   return geodata[y*width+x];
 }
 
 template<class T>
-void RasterData<T>::setAll(T val){
+void RasterBand<T>::setAll(T val){
   std::fill(geodata.begin(),geodata.end(),val);
 }
 
@@ -1401,7 +1401,7 @@ class Raster(string sourceDb){
 
   BaseTable        bt;
   RasterProjection rp;
-  RasterData<T>  rd;
+  RasterBand<T>  rd;
   RasterBase     rb;
 
 }
