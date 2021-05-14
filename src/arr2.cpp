@@ -25,6 +25,7 @@
 #include <typeinfo>
 
 
+
 struct RasterFields {
   double raster_mtolerance;
   double raster_xytolerance;
@@ -73,7 +74,59 @@ struct Field {
 };
 
 
-class BaseTable {
+/* ==================================================================== */
+/************************************************************************/
+
+class JPEG2000Dataset final: public GDALJP2AbstractDataset
+{
+    friend class JPEG2000RasterBand;
+
+    jas_stream_t *psStream;
+    jas_image_t *psImage;
+    int         iFormat;
+    int         bPromoteTo8Bit;
+
+    int         bAlreadyDecoded;
+    int         DecodeImage();
+
+  public:
+                JPEG2000Dataset();
+                ~JPEG2000Dataset();
+
+    static int           Identify( GDALOpenInfo * );
+    static GDALDataset  *Open( GDALOpenInfo * );
+};
+
+/************************************************************************/
+/* ==================================================================== */
+/*                            JPEG2000RasterBand                        */
+/* ==================================================================== */
+/************************************************************************/
+
+class JPEG2000RasterBand final: public GDALPamRasterBand
+{
+    friend class JPEG2000Dataset;
+
+    // NOTE: poDS may be altered for NITF/JPEG2000 files!
+    JPEG2000Dataset     *poGDS;
+
+    jas_matrix_t        *psMatrix;
+
+    int                  iDepth;
+    int                  bSignedness;
+
+  public:
+
+    JPEG2000RasterBand( JPEG2000Dataset *, int, int, int );
+    virtual ~JPEG2000RasterBand();
+
+    virtual CPLErr IReadBlock( int, int, void * ) override;
+    virtual GDALColorInterp GetColorInterpretation() override;
+};
+
+
+
+class GDBTable {
  public:
   std::ifstream gdbtable, gdbtablx;
   int32_t nfeaturesx;
@@ -90,19 +143,19 @@ class BaseTable {
 
   bool skipField(const Field &field, uint8_t &ifield_for_flag_test);
 
-  BaseTable(std::string filename);
+  GDBTable(std::string filename);
 };
 
 
 
-class MasterTable : public BaseTable {
+class MasterTable : public GDBTable {
  public:
   std::vector< std::pair<std::string, int> > rasters;
 
   MasterTable(std::string filename);
 };
 
-class RasterBase : public BaseTable {
+class RasterBase : public GDBTable {
  private:
   std::string bandTypeToDataTypeString(std::vector< uint8_t > &band_types) const;
   std::string bandTypeToCompressionTypeString(std::vector<uint8_t> &band_types) const;
@@ -128,7 +181,7 @@ class RasterBase : public BaseTable {
   RasterBase(std::string filename);
 };
 
-class RasterProjection : public BaseTable {
+class RasterProjection : public GDBTable {
  public:
   RasterProjection(std::string filename);
 };
@@ -136,7 +189,7 @@ class RasterProjection : public BaseTable {
 class Raster;
 
 template<class T>
-class RasterBand : public BaseTable {
+class RasterBand : public GDBTable {
  public:
   std::vector<T> geodata;
 
@@ -265,21 +318,6 @@ class RasterBand : public BaseTable {
 };
 
 
-void ExportRasterToGeoTIFF(std::string operation, std::string basename, int raster_num, std::string outputname);
-#include <arc_raster_rescue/arc_raster_rescue.hpp>
-
-#include <zlib.h>
-
-#include <bitset>
-#include <cstring>
-#include <fstream>
-#include <iomanip>
-#include <iostream>
-#include <limits>
-#include <sstream>
-#include <string>
-#include <type_traits>
-#include <vector>
 
 ////////////////////////////////////////////////////////////
 //UTILITY FUNCTIONS FOR READING AND MANIPULATING BINARY DATA
@@ -405,12 +443,6 @@ int32_t GetCount(std::ifstream &fin){
 }
 
 
-
-
-
-
-
-
 //////////////////////////////////////////////////////////
 //Deal with compressed data
 
@@ -515,11 +547,11 @@ std::vector<T> Unpack(std::vector<uint8_t> &packed, const int block_width, const
 }
 
 
-std::string BaseTable::getFilenameX(std::string filename){
+std::string GDBTable::getFilenameX(std::string filename){
   return filename.substr(0,filename.size()-1)+"x";
 }
 
-void BaseTable::getFlags(){
+void GDBTable::getFlags(){
   if(has_flags){
     auto nremainingflags = nullable_fields;
     while(nremainingflags>0){
@@ -530,7 +562,7 @@ void BaseTable::getFlags(){
   }
 }
 
-bool BaseTable::skipField(const Field &field, uint8_t &ifield_for_flag_test){
+bool GDBTable::skipField(const Field &field, uint8_t &ifield_for_flag_test){
   if(has_flags && field.nullable){
     uint8_t test = (flags[ifield_for_flag_test >> 3] & (1 << (ifield_for_flag_test % 8)));
     ifield_for_flag_test++;
@@ -539,7 +571,7 @@ bool BaseTable::skipField(const Field &field, uint8_t &ifield_for_flag_test){
   return false;
 }
 
-BaseTable::BaseTable(std::string filename){
+GDBTable::GDBTable(std::string filename){
   std::string filenamex = getFilenameX(filename);
   gdbtablx.open(filenamex, std::ios_base::in | std::ios_base::binary);
 
@@ -772,12 +804,10 @@ BaseTable::BaseTable(std::string filename){
     //std::cout<<"\n\nField Number = "<<(fields.size()-1)<<"\n";
     //field.print();
   }
-
-
 }
 
 
-MasterTable::MasterTable(std::string foldername) : BaseTable(foldername + "a00000001.gdbtable") {
+MasterTable::MasterTable(std::string foldername) : GDBTable(foldername + "a00000001.gdbtable") {
 
 std::string masterTable = foldername + "a00000001.gdbtable";
   for(int f=0;f<nfeaturesx;f++){
@@ -859,7 +889,6 @@ RasterBase MasterTable::getRasterBase( int raster_num ){
 	return raster_num;
   }
   
-  
 
 
 /* Plus 0
@@ -905,7 +934,7 @@ Type: 1
 Field          srid : 0
 set([1, 3, 4, 6])
 */
-RasterBase::RasterBase(std::string filename) : BaseTable(filename) {
+RasterBase::RasterBase(std::string filename) : GDBTable(filename) {
 
   for(int f=0;f<nfeaturesx;f++){
     GotoPosition(gdbtablx, 16 + f * size_tablx_offsets);
@@ -1100,13 +1129,13 @@ std::string RasterBase::bandTypeToCompressionTypeString(std::vector<uint8_t> &ba
 
 
 
-RasterProjection::RasterProjection(std::string filename) : BaseTable(filename){
+RasterProjection::RasterProjection(std::string filename) : GDBTable(filename){
 
 }
 
 
 template<class T>
-RasterBand<T>::RasterBand(std::string filename, const RasterBase &rb) : BaseTable(filename){
+RasterBand<T>::RasterBand(std::string filename, const RasterBase &rb) : GDBTable(filename){
   //Determine maximum and minimum pixel coordinates from the data itself, since
   //extracting them from the metadata is not yet reliable.
   getDimensionsFromData(filename,rb);
@@ -1392,14 +1421,13 @@ void RasterBand<T>::setAll(T val){
 
 
 
-
 template<class T>
 void ExportTypedRasterToGeoTIFF(std::string operation, std::string basename, int raster_num, std::string outputname){
 
 
 class Raster(string sourceDb){
 
-  BaseTable        bt;
+  GDBTable        bt;
   RasterProjection rp;
   RasterBand<T>  rd;
   RasterBase     rb;
