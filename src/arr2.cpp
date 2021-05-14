@@ -1,5 +1,3 @@
-#include <arc_raster_rescue/arc_raster_rescue.hpp>
-
 #include <zlib.h>
 
 #include <bitset>
@@ -17,7 +15,8 @@
 #pragma once
 
 #include <gdal_priv.h>
-
+#include "cpl_string.h"
+#include "gdal_frmts.h"
 #include <algorithm>
 #include <cassert>
 #include <chrono>
@@ -155,7 +154,7 @@ class MasterTable : public GDBTable {
   MasterTable(std::string filename);
 };
 
-class RasterBase : public GDBTable {
+class RasterBase : public GDBTable, public GDALGeorefPamDataset {
  private:
   std::string bandTypeToDataTypeString(std::vector< uint8_t > &band_types) const;
   std::string bandTypeToCompressionTypeString(std::vector<uint8_t> &band_types) const;
@@ -189,7 +188,7 @@ class RasterProjection : public GDBTable {
 class Raster;
 
 template<class T>
-class RasterBand : public GDBTable {
+class RasterBand : public GDBTable, public GDALPamRasterBand {
  public:
   std::vector<T> geodata;
 
